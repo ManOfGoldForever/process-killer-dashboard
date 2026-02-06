@@ -1,41 +1,66 @@
-use std::thread;
-use std::time::Duration;
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+mod app;
 
-fn main() {
-    let mut sys = System::new_all();
-    sys.refresh_cpu_usage();
-    let cpu_count = sys.cpus().len() as f32;
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::widgets::TableState;
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::io::{self};
+use std::time::{Duration, Instant};
+
+use app::{draw_ui, init_system, refresh_system_data};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    crossterm::terminal::enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
+    let mut stats = init_system();
+    let mut table_state = TableState::default();
+    table_state.select(Some(0));
+    let mut last_tick = Instant::now();
+    let tick_rate = Duration::from_secs(1);
 
     loop {
-        sys.refresh_processes_specifics(
-            sysinfo::ProcessesToUpdate::All,
-            true,
-            sysinfo::ProcessRefreshKind::nothing().with_cpu(),
-        );
-        print!("{esc}c", esc = 27 as char);
-        println!(
-            "{:<10} {:<30} {:<10} {:<10}",
-            "PID", "Name", "CPU %", "CPU Core %"
-        );
-        println!("{}", "-".repeat(50));
-        let mut procs: Vec<_> = sys.processes().values().collect();
-        procs.sort_by(|a, b| b.cpu_usage().partial_cmp(&a.cpu_usage()).unwrap());
-        for p in procs.iter() {
-            let normalized_cpu = p.cpu_usage() / cpu_count;
-            let mut name = p.name().to_string_lossy().into_owned();
-            if name.len() > 30 {
-                name.truncate(27);
-                name.push_str("...");
-            }
-            println!(
-                "{:<10} {:<30} {:<.2}% {:<.2}%",
-                p.pid(),
-                p.name().to_string_lossy(),
-                normalized_cpu,
-                p.cpu_usage(),
-            );
+        terminal.draw(|f| {
+            draw_ui(f, &mut stats.sys, stats.cpu_count, &mut table_state);
+        })?;
+
+        if last_tick.elapsed() >= tick_rate {
+            refresh_system_data(&mut stats.sys);
+            last_tick = Instant::now();
         }
-        thread::sleep(Duration::from_millis(1000));
+
+        if event::poll(Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                match key.code {
+                    KeyCode::Char('q') => break,
+                    KeyCode::Down => {
+                        let i = match table_state.selected() {
+                            Some(i) => (i + 1).min(stats.sys.processes().len() - 1),
+                            None => 0,
+                        };
+                        table_state.select(Some(i));
+                    }
+                    KeyCode::Up => {
+                        let i = match table_state.selected() {
+                            Some(i) => i.saturating_sub(1),
+                            None => 0,
+                        };
+                        table_state.select(Some(i));
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
+
+    crossterm::execute!(
+        io::stdout(),
+        crossterm::terminal::LeaveAlternateScreen,
+        crossterm::cursor::Show
+    )?;
+    crossterm::terminal::disable_raw_mode()?;
+    Ok(())
 }
