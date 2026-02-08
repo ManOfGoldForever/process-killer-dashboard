@@ -12,6 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
+    let mut paused: bool = false;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -24,18 +25,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         terminal.draw(|f| {
-            draw_ui(f, &mut stats.sys, stats.cpu_count, &mut table_state);
+            draw_ui(
+                f,
+                &mut stats.sys,
+                &mut stats.users,
+                stats.cpu_count,
+                &mut table_state,
+            );
         })?;
 
-        if last_tick.elapsed() >= tick_rate {
-            refresh_system_data(&mut stats.sys);
-            last_tick = Instant::now();
+        if !paused {
+            if last_tick.elapsed() >= tick_rate {
+                refresh_system_data(&mut stats.sys);
+                last_tick = Instant::now();
+            }
         }
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') => break,
+                    KeyCode::Char('p') => paused = !paused,
                     KeyCode::Down => {
                         let i = match table_state.selected() {
                             Some(i) => (i + 1).min(stats.sys.processes().len() - 1),
