@@ -54,12 +54,22 @@ pub fn draw_ui(
             } else {
                 "Unknown".to_string()
             };
+            let status = format!("{:?}", p.status());
+            let disk = p.disk_usage();
+            let disk_str = format!(
+                "R:{}/W:{}",
+                disk.total_read_bytes / 1024,
+                disk.total_written_bytes / 1024
+            );
             Row::new(vec![
                 p.pid().to_string(),
+                status,
                 p.name().to_string_lossy().to_string(),
+                format_duration(p.run_time()),
                 p.cmd().join(OsStr::new(" ")).to_string_lossy().to_string(),
                 owner_name,
-                format!("{:.1} bytes", p.memory()),
+                format_memory(p.memory()),
+                disk_str,
                 format!("{:.1}%", cpu_usage / cpu_count),
                 format!("{:.1}%", cpu_usage),
             ])
@@ -68,24 +78,30 @@ pub fn draw_ui(
 
     let widths = [
         Constraint::Length(10),
+        Constraint::Length(10),
+        Constraint::Length(30),
+        Constraint::Length(10),
         Constraint::Fill(1),
-        Constraint::Fill(1),
-        Constraint::Length(10),
-        Constraint::Length(20),
         Constraint::Length(10),
         Constraint::Length(10),
+        Constraint::Length(12),
+        Constraint::Length(6),
+        Constraint::Length(6),
     ];
 
     let table = Table::new(rows, widths)
         .header(
             Row::new(vec![
                 "PID",
+                "Status",
                 "Name",
+                "Uptime",
                 "Command",
                 "Owner",
                 "Memory",
+                "Disk Usage",
                 "CPU %",
-                "CPU Core %",
+                "Core %",
             ])
             .style(Style::new().blue().bold()),
         )
@@ -108,6 +124,33 @@ pub fn refresh_system_data(sys: &mut System) {
         sysinfo::ProcessRefreshKind::nothing()
             .with_cpu()
             .with_user(UpdateKind::Always)
+            .with_disk_usage()
             .with_memory(),
     );
+}
+
+fn format_memory(bytes: u64) -> String {
+    let kb = bytes / 1024;
+    let mb = kb / 1024;
+    let gb = mb / 1024;
+
+    if gb > 0 {
+        format!("{:.2} GB", bytes as f32 / 1024.0 / 1024.0 / 1024.0)
+    } else if mb > 0 {
+        format!("{:.1} MB", bytes as f32 / 1024.0 / 1024.0)
+    } else {
+        format!("{} KB", kb)
+    }
+}
+
+fn format_duration(seconds: u64) -> String {
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let secs = seconds % 60;
+
+    if hours > 0 {
+        format!("{:02}:{:02}:{:02}", hours, minutes, secs)
+    } else {
+        format!("{:02}:{:02}", minutes, secs)
+    }
 }
