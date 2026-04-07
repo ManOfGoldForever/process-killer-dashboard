@@ -5,6 +5,16 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Row, Table, TableState},
 };
+
+// Hacker theme palette
+const ORANGE: Color = Color::Rgb(239, 147, 77);
+const GREEN: Color  = Color::Rgb(126, 201, 126);
+const BLUE: Color   = Color::Rgb(113, 180, 214);
+const RED: Color    = Color::Rgb(241, 110, 101);
+const YELLOW: Color = Color::Rgb(232, 201, 126);
+const CREAM: Color  = Color::Rgb(244, 222, 205);
+const HOVER: Color  = Color::Rgb(42, 43, 42);
+const DIM: Color    = Color::Rgb(106, 106, 106);
 use std::cmp::Reverse;
 use std::ffi::OsStr;
 use std::thread;
@@ -118,48 +128,52 @@ pub fn draw_ui(
                 "CPU %",
                 "Core %",
             ])
-            .style(Style::new().blue().bold()),
+            .style(Style::new().fg(ORANGE).bold()),
         )
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Process Manager ")
+                .border_style(Style::new().fg(DIM))
+                .title(Span::styled(" Process Manager ", Style::new().fg(ORANGE).bold()))
                 .title_bottom(
-                    " Use ↑/↓ Scroll, q Quit, p Pause, / Search, Enter Apply/Confirm, Esc Clear/Cancel, y Confirm, n Cancel, k Soft Kill, K Force Kill, c CPU, m Memory, r Disk Read, w Disk Write, n Name, i PID ",
+                    Span::styled(
+                        " ↑/↓ Scroll  q Quit  p Pause  / Search  k Kill  K Force Kill  c CPU  m Mem  r Read  w Write  n Name  i PID ",
+                        Style::new().fg(DIM),
+                    )
                 ),
         )
-        .row_highlight_style(Style::new().bg(Color::Cyan).fg(Color::Black).bold())
+        .row_highlight_style(Style::new().bg(HOVER).fg(CREAM).bold())
         .highlight_symbol(">> ");
 
     let chunks = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(f.area());
     let footer_chunks =
         Layout::horizontal([Constraint::Min(1), Constraint::Length(18)]).split(chunks[1]);
     let mode_color = match mode_label {
-        "NORMAL" => Color::Green,
-        "SEARCH" => Color::Cyan,
-        "CONFIRM" => Color::Red,
-        _ => Color::White,
+        "NORMAL"  => GREEN,
+        "SEARCH"  => BLUE,
+        "CONFIRM" => RED,
+        _         => CREAM,
     };
     let status_color = if status.contains("failed") {
-        Color::Red
+        RED
     } else if status.contains("cancelled") || status.contains("cleared") {
-        Color::LightYellow
+        YELLOW
     } else {
-        Color::Yellow
+        ORANGE
     };
     let footer = Line::from(vec![
-        Span::styled("[", Style::new().fg(Color::DarkGray)),
+        Span::styled("[", Style::new().fg(DIM)),
         Span::styled(mode_label, Style::new().fg(mode_color).bold()),
-        Span::styled("] ", Style::new().fg(Color::DarkGray)),
+        Span::styled("] ", Style::new().fg(DIM)),
         Span::styled(status, Style::new().fg(status_color)),
     ]);
 
-    let pause_label = if paused { "PAUSED" } else { "UNPAUSED" };
-    let pause_color = if paused { Color::Yellow } else { Color::Green };
+    let pause_label = if paused { "PAUSED" } else { "LIVE" };
+    let pause_color = if paused { YELLOW } else { GREEN };
     let pause_badge = Line::from(vec![
-        Span::styled("[", Style::new().fg(Color::DarkGray)),
+        Span::styled("[", Style::new().fg(DIM)),
         Span::styled(pause_label, Style::new().fg(pause_color).bold()),
-        Span::styled("]", Style::new().fg(Color::DarkGray)),
+        Span::styled("]", Style::new().fg(DIM)),
     ]);
 
     f.render_stateful_widget(table, chunks[0], state);
